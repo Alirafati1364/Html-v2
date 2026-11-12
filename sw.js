@@ -2,7 +2,7 @@
    - همهٔ فایل‌های برنامه در حافظهٔ گوشی ذخیره می‌شوند؛ بدون اینترنت (حتی بدون اینترنت ملی) هم باز می‌شود.
    - هر بار برنامه باز شود، در پس‌زمینه نسخهٔ تازه را می‌گیرد؛ نسخهٔ جدید دفعهٔ بعد نمایش داده می‌شود.
    - فقط وقتی عددِ VERSION را عوض کن که آیکون یا manifest را تغییر داده‌ای. */
-const VERSION = 'v3';
+const VERSION = 'v1';
 const CACHE = 'desk-' + VERSION;
 const BASE = self.registration.scope;
 const INDEX = new URL('./index.html', BASE).href;
