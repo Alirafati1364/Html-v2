@@ -114,6 +114,11 @@ body {
   border-inline-start: 1px solid rgba(255, 255, 255, .2); background: rgba(0, 0, 0, .16);
   font-size: clamp(28px, 8vw, 34px); font-weight: 300; line-height: 1; letter-spacing: .03em; font-variant-numeric: tabular-nums;
 }
+.install-btn {
+  position: absolute; top: calc(10px + env(safe-area-inset-top, 0px)); left: 12px; z-index: 2;
+  padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(255, 226, 150, .55);
+  background: rgba(255, 226, 150, .18); color: #FFE9A8; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer;
+}
 @media (prefers-reduced-motion: no-preference) {
   .hero h1, .hero-cal { animation: rise .6s cubic-bezier(.2, .7, .2, 1) both; }
   .hero-cal { animation-delay: .08s; }
@@ -486,7 +491,6 @@ body.searching #favPanel { display: none; }
 </style>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 </head>
@@ -502,6 +506,7 @@ body.searching #favPanel { display: none; }
 </svg>
 
 <header class="hero">
+  <button class="install-btn" id="installBtn" type="button" hidden>📲 نصب برنامه</button>
   <h1 id="greet"><span class="g1" id="g1">میز کار</span><span class="g2" id="g2">علی رأفتی</span></h1>
   <a class="hero-cal" href="https://badesaba.ir/" aria-label="تقویم، ساعت و آب‌وهوا در باد صبا">
     <span class="hero-dates"><span class="date" id="date"></span><span class="date-g" id="dateG"></span></span>
@@ -538,7 +543,7 @@ body.searching #favPanel { display: none; }
     <a class="tk tk-s" data-id="ons" href="https://www.tgju.org/profile/ons"><span class="tk-l">انس طلا $</span><span class="tk-v"><b>—</b></span><span class="tk-c"></span></a>
     <a class="tk tk-s" data-id="oil" href="https://www.tgju.org/profile/oil_brent"><span class="tk-l">برنت $</span><span class="tk-v"><b>—</b></span><span class="tk-c"></span></a>
     <a class="tk tk-s" data-id="slv" href="https://www.tgju.org/profile/silver"><span class="tk-l">نقره $</span><span class="tk-v"><b>—</b></span><span class="tk-c"></span></a>
-    <a class="tk tk-s" data-id="cu" href="https://www.tgju.org/basemetal"><span class="tk-l">مس (تن) $</span><span class="tk-v"><b>—</b></span><span class="tk-c"></span></a>
+    <a class="tk tk-s" data-id="cu" href="https://www.tgju.org/profile/basemetal-london-copper"><span class="tk-l">مس (تن) $</span><span class="tk-v"><b>—</b></span><span class="tk-c"></span></a>
     <a class="tk tk-s" data-id="btc" href="https://nobitex.ir/"><span class="tk-l">بیت‌کوین $</span><span class="tk-v"><b>—</b></span><span class="tk-c"></span></a>
   </div>
   <div class="tk-meta">
@@ -1659,7 +1664,10 @@ body.searching #favPanel { display: none; }
     oil: { load: withSource(fromTgju('oil_brent'), 'https://www.tgju.org/profile/oil_brent', 'TGJU'), div: 1 },
     /* نقره: دلار برای هر اونس. مس جهانی: دلار برای هر تن (کلیدها از نام صفحه‌های tgju) */
     slv: { load: ranged(withSource(fromTgju('silver'), 'https://www.tgju.org/profile/silver', 'TGJU'), 5, 500), div: 1 },
-    cu: { load: withSource(fromTgjuCopper(), 'https://www.tgju.org/basemetal', 'TGJU'), div: 1 }
+    cu: { load: firstOk([
+      ranged(withSource(fromTgju('basemetal-london-copper'), 'https://www.tgju.org/profile/basemetal-london-copper', 'TGJU'), 3000, 40000),
+      withSource(fromTgjuCopper(), 'https://www.tgju.org/profile/basemetal-london-copper', 'TGJU')   /* پشتیبان: اگر کلید فرق کرد، کلیدی که اسمش copper دارد */
+    ]), div: 1 }
   };
   /* شاخص کل بورس تهران (TSETMC) */
   var TSE = 'https://cdn.tsetmc.com/api/';
@@ -1692,7 +1700,7 @@ body.searching #favPanel { display: none; }
       btc: ['https://www.tgju.org/profile/crypto-bitcoin', 'https://nobitex.ir/'],
       tse: ['https://www.tsetmc.com/'], oil: ['https://www.tgju.org/profile/oil_brent'],
       slv: ['https://www.tgju.org/profile/silver'],
-      cu: ['https://www.tgju.org/basemetal']
+      cu: ['https://www.tgju.org/profile/basemetal-london-copper']
     };
     return allowed[id] && allowed[id].indexOf(url) >= 0;
   }
@@ -1744,6 +1752,43 @@ body.searching #favPanel { display: none; }
       'قدیمی‌ترین دریافت: ' + tfmt(Math.min.apply(null, loaded.map(function (id) { return tkCache[id].ts; })));
     el.setAttribute('title', 'زمان‌ها مربوط به دریافت در این دستگاه‌اند، نه زمان معامله در منبع.');
   }
+  /* نصب مثل یک برنامهٔ واقعی: دکمه فقط وقتی دیده می‌شود که کروم نصب را مجاز بداند */
+  var deferredInstall = null;
+  function isStandalone() { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone === true; }
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); deferredInstall = e;
+    var b = $('#installBtn'); if (b && !isStandalone()) b.hidden = false;
+  });
+  window.addEventListener('appinstalled', function () { deferredInstall = null; var b = $('#installBtn'); if (b) b.hidden = true; });
+  $('#installBtn').addEventListener('click', function () {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(function () { deferredInstall = null; $('#installBtn').hidden = true; }, function () {});
+  });
+  /* بخش «بررسی نصب» در صفحهٔ عیب‌یابی (#diag): نشان می‌دهد چرا کروم «نصب برنامه» را نشان نمی‌دهد */
+  function installDiag(box, lines) {
+    lines.push('', '--- install check ---');
+    lines.push('page: ' + location.protocol + '//' + location.host + location.pathname + ' | https/secure: ' + window.isSecureContext);
+    lines.push('standalone: ' + (isStandalone() ? 'yes' : 'no') + ' | Chrome says installable: ' + (deferredInstall ? 'YES' : 'not yet / no'));
+    var link = document.querySelector('link[rel=manifest]'), mUrl = link && link.href, jobs = [];
+    lines.push('manifest link: ' + (mUrl || 'MISSING'));
+    if ('serviceWorker' in navigator) {
+      jobs.push(navigator.serviceWorker.getRegistration().then(function (r) {
+        lines.push('service worker: ' + (r ? (r.active ? 'active' : 'installing') : 'NOT REGISTERED') + ' | controlling this page: ' + !!navigator.serviceWorker.controller);
+      }).catch(function (e) { lines.push('service worker: error ' + e.message); }));
+    } else lines.push('service worker: not available (needs https)');
+    if (mUrl) {
+      jobs.push(fetch(mUrl, { cache: 'no-store' }).then(function (r) {
+        lines.push('manifest file: HTTP ' + r.status); return r.json();
+      }).then(function (m) {
+        return Promise.all((m.icons || []).map(function (ic) {
+          return fetch(new URL(ic.src, mUrl), { cache: 'no-store' }).then(function (r) { lines.push('icon ' + ic.sizes + ' ' + (ic.purpose || 'any') + ': HTTP ' + r.status); })
+            .catch(function () { lines.push('icon ' + ic.src + ': FAILED'); });
+        }));
+      }).catch(function (e) { lines.push('manifest file: FAILED (' + e.message + ')'); }));
+    }
+    return Promise.all(jobs).then(function () { box.textContent = lines.join('\n') + '\n\n(tap to close)'; });
+  }
   function showDiag() {   /* صفحهٔ عیب‌یابی قیمت‌ها: آدرس + #diag؛ با لمس بسته می‌شود */
     var box = $('#diagBox');
     if (!box) {
@@ -1758,6 +1803,7 @@ body.searching #favPanel { display: none; }
       lines.push(id + ': ' + (tkFailed[id] ? 'FAILED - ' + (tkDiag.errors[id] || '') : tkCache[id] ? 'ok ' + tkCache[id].v : 'pending'));
     });
     box.textContent = lines.join('\n') + '\n\n(tap to close)';
+    installDiag(box, lines.slice());
   }
   function refreshTicker() {
     if (tkBusy) return; tkBusy = true; tgjuP = null; tkLast = Date.now();
@@ -1801,7 +1847,7 @@ body.searching #favPanel { display: none; }
     var d = document.createElement('div');
     d.setAttribute('role', 'status');
     d.textContent = 'نسخهٔ جدیدتری آماده است؛ برنامه را یک بار ببند و دوباره باز کن.';
-    d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:99;padding:12px 14px;border-radius:14px;background:#14214D;color:#fff;font-family:inherit;font-weight:600;font-size:13.5px;line-height:1.7;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.3)';
+    d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:99;padding:12px 14px;border-radius:14px;background:#14214D;color:#fff;font:600 13.5px/1.7 inherit;text-align:center;box-shadow:0 6px 24px rgba(0,0,0,.3)';
     document.body.appendChild(d);
     setTimeout(function () { d.remove(); }, 12000);
   });
